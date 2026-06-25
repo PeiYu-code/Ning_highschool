@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英文單字配對自我測試</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1>英文單字配對測試</h1>
+        
+        <div class="scoreboard">
+            <p>本回剩餘單字數: <span id="remaining-count">0</span></p>
+            <p>目前得分 (成功): <span id="success-score">0</span> | 錯誤次數: <span id="error-score">0</span></p>
+        </div>
+
+        <div class="match-area">
+            <div class="column" id="english-column">
+                </div>
+            <div class="column" id="chinese-column">
+                </div>
+        </div>
+    </div>
+
+    <div id="result-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 450px; width: 90%;">
+            <h2>測試結束！</h2>
+            <p>太棒了，你已完成本回 45 個單字測試！</p>
+            <hr>
+            <p>成功配對: <span id="final-success">0</span> 次</p>
+            <p>配對錯誤: <span id="final-error">0</span> 次</p>
+
+            <div id="wrong-words-box" style="margin-top: 15px; text-align: left; background: #fee2e2; padding: 15px; border-radius: 8px; max-height: 150px; overflow-y: auto; display: none;">
+                <strong style="color: #b91c1c;">需加強的單字 (答錯項目)：</strong>
+                <ul id="wrong-words-list" style="margin: 5px 0 0 20px; padding: 0; color: #7f1d1d; line-height: 1.5;">
+                    </ul>
+            </div>
+            <button id="restart-btn">再試一次</button>
+        </div>
+    </div>
+
+    <script src="script.js" defer></script>
+</body>
+</html>
