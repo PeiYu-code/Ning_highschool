@@ -10,6 +10,22 @@ const wordBank = [
     { eng: "the rest of", ch: "剩下的、其餘的" },
     { eng: "start", ch: "開始(動、名)" },
     { eng: "accidentally", ch: "意外地(副)" },
+  {eng: "recall", ch: "回想(動)" },
+    {eng: "presentation", ch: "(上台)報告(名)" },
+    {eng: "take...seriously", ch: "認真看待..." },
+    {eng: "skip", ch: "跳過、略過(動)" },
+    {eng: "ruin", ch: "破壞(動)" },
+    {eng: "embarrassed", ch: "尷尬的(形)" },
+    {eng: "depressed", ch: "低落沮喪的(形)" },
+    {eng: "let... down", ch: "讓...失望" },
+    {eng: "upset", ch: "使...沮喪(動)" },
+    {eng: "reflect on", ch: "在...事情上反省(動)" },
+    {eng: "make sure", ch: "確保" },
+    {eng: "put... first", ch: "把...放在首位" },
+    {eng: "feel", ch: "感覺、感到(動)" },
+    {eng: "in front of", ch: "在...前" },
+    {eng: "prepare", ch: "準備(動)" },
+    {eng: "meeting", ch: "會議(名)" } 
 ];
 
 // 2. 遊戲狀態與記錄變數
