@@ -25,7 +25,15 @@ const wordBank = [
     {eng: "feel", ch: "感覺、感到(動)" },
     {eng: "in front of", ch: "在...前" },
     {eng: "prepare", ch: "準備(動)" },
-    {eng: "meeting", ch: "會議(名)" } 
+    {eng: "meeting", ch: "會議(名)" },
+  { eng: "failure", ch: "失敗(n.)" },
+  { eng: "remind", ch: "提醒、使...想起(v.)" },
+  { eng: "realize", ch: "了解(v.)" },
+  { eng: "traditional", ch: "傳統的(adj.)" },
+  { eng: "fortunately", ch: "幸運地(adv.)" },
+  { eng: "take... seriously", ch: "認真看待..." },
+  { eng: "let down", ch: "讓...失望" },
+  { eng: "dress up", ch: "裝扮" }
 ];
 
 // 2. 遊戲狀態與記錄變數
