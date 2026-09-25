@@ -1,6 +1,8 @@
-// 1. 單字資料庫 (包含所有單字)
+// 已填入您的 Google Apps Script Web App 部署 URL
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxYLpKNLpg_Keau68B-xMg-kZSfm_Z4luO-PcyzWjM0hhhuotfe2KPRHOjD7GVKLq9w/exec';
+
 const wordBank = [
-  { eng: "about", ch: "關於(介)" },
+ { eng: "about", ch: "關於(介)" },
     { eng: "memorable", ch: "難忘的(形)" },
     { eng: "reply", ch: "回覆(動、名) +to" },
     { eng: "a few", ch: "一些(+可數名詞)" },
@@ -33,245 +35,289 @@ const wordBank = [
   { eng: "fortunately", ch: "幸運地(adv.)" },
   { eng: "take... seriously", ch: "認真看待..." },
   { eng: "let down", ch: "讓...失望" },
-  { eng: "dress up", ch: "裝扮" }
+  { eng: "dress up", ch: "裝扮" },
+  { eng: "relationship", ch: "關係、戀愛關係(n.)"},
+   { eng: "satisfying", ch: "令人滿意的(adj.)"},
+   { eng: "inspire", ch: "激勵(v.)"},
+   { eng: "inspiration", ch: "靈感(n.)"},
+   { eng: "connect", ch: "與他人建立良好關係(v.)"},
+   { eng: "communicate", ch: "溝通(v.)"},
+   { eng: "introduce (+to)", ch: "介紹、引進(v.)"},
+    { eng: "throughout", ch: "自始至終(介)"},
+   { eng: "message", ch: "訊息(n.)"},
+   { eng: "refresh", ch: "刷新(v.)"},
+   { eng: "romantic", ch: "浪漫的(adj.)"},
+   { eng: "focus (+on)", ch: "專注(v.)"},
+   { eng: "ignore", ch: "忽略(v.)"},
+   { eng: "attention", ch: "注意力(n.)"},
+    { eng: "deny", ch: "否認(v.)"},
+   { eng: "respond (+to)", ch: "回應(v.)"},
+   { eng: "disappointed", ch: "感到失望的(adj.)"},
+   { eng: "personally", ch: "針對某人地(adv.)"},
+   { eng: "personal", ch: "個人的(adj.)"},
+   { eng: "in fact", ch: "事實上"},
+   { eng: "take... personally", ch: "認為...是針對個人"},
+    { eng: "turn to", ch: "轉向(某人)、求助於(某人)"},
+   { eng: "hang out", ch: "與某人一起出去玩"},
+   { eng: "in addition", ch: "除此之外"},
+   { eng: "in case", ch: "以防萬一"},
+   { eng: "go through", ch: "徹底瀏覽"}
 ];
 
-// 2. 遊戲狀態與記錄變數
-let wordPool = [];
-let activeEng = [];
-let activeCh = [];
+let currentQueue = [];
+let activeEng = [null, null, null, null, null];
+let activeCh = [null, null, null, null, null];
 let selectedEngSlot = null;
 let selectedChSlot = null;
-let remainingCount = 0;
-let successScore = 0;
-let errorScore = 0;
+let startTime = 0;
+let timerInterval = null;
+let completedCount = 0;
+
+// 追蹤答錯相關數據
+let wrongCount = 0;
 let wrongWordsSet = new Set();
-let startTime = null; // 用於計算單輪花費秒數
 
-// ⚠️ 請把你在 Google Apps Script 部署得到的 Web App 網址貼在下方雙引號內：
-const GOOGLE_APP_URL = "https://script.google.com/macros/s/AKfycbzpOV9KZRMTUWuJi_qWubgbuAAmo1cgJUAtZjZoBuReCszDJ_EEHyCskRxmEt8hXXt9qA/exec";
-
-// 3. 亂數洗牌函數 (Fisher-Yates Shuffle)
 function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+  return arr;
 }
 
-// 4. 初始化遊戲
 function initGame() {
-  let allWords = [...wordBank];
-  shuffle(allWords);
-
-  // 每回嚴格抽取 45 個單字測試
-  const gameSize = Math.min(45, allWords.length);
-  wordPool = allWords.slice(0, gameSize);
-  remainingCount = wordPool.length;
-  successScore = 0;
-  errorScore = 0;
+  clearInterval(timerInterval);
+  completedCount = 0;
+  wrongCount = 0;
   wrongWordsSet.clear();
-  updateScoreboard();
-
-  // ⏱️ 記錄此輪遊戲的起點時間
-  startTime = new Date();
-
-  activeEng = [];
-  activeCh = [];
-  const initialDraw = Math.min(5, wordPool.length);
-  for (let i = 0; i < initialDraw; i++) {
-    const word = wordPool.pop();
-    activeEng.push(word);
-    activeCh.push(word);
-  }
-
-  shuffle(activeCh);
-  renderColumns();
-
-  document.getElementById('result-modal').classList.add('hidden');
   selectedEngSlot = null;
   selectedChSlot = null;
+
+  document.getElementById('progress').textContent = `0 / ${wordBank.length}`;
+  document.getElementById('timer').textContent = '00:00';
+  document.getElementById('result-modal').classList.add('hidden');
+
+  const indexedWords = wordBank.map((item, index) => ({ ...item, id: index }));
+  currentQueue = shuffle(indexedWords);
+
+  // 初始化前 5 個單字
+  const initialItems = [];
+  for (let i = 0; i < 5 && currentQueue.length > 0; i++) {
+    initialItems.push(currentQueue.pop());
+  }
+
+  activeEng = [...initialItems];
+  activeCh = shuffle([...initialItems]);
+
+  // 開局初始化不執行 fade out 動畫，直接渲染
+  updateSlotContentsSmoothly(-1, false);
+
+  startTime = Date.now();
+  timerInterval = setInterval(updateTimer, 1000);
 }
 
-// 5. 更新計分板
-function updateScoreboard() {
-  document.getElementById('remaining-count').textContent = remainingCount;
-  document.getElementById('success-score').textContent = successScore;
-  document.getElementById('error-score').textContent = errorScore;
+function updateSlotContentsSmoothly(replacedEngIndex = -1, animate = true) {
+  const engSlots = document.querySelectorAll('#english-column .slot');
+  const chSlots = document.querySelectorAll('#chinese-column .slot');
+
+  // 定義要觸發 fade 動畫的文字元素 (Span)
+  let fadingSpans = [];
+
+  if (animate) {
+    // 右側全部中文均套用淡入淡出
+    chSlots.forEach(slot => {
+      const span = slot.querySelector('.slot-text');
+      if (span) fadingSpans.push(span);
+    });
+
+    // 左側英文只針對「新替補位置」的文字套用淡入淡出
+    if (replacedEngIndex !== -1 && engSlots[replacedEngIndex]) {
+      const span = engSlots[replacedEngIndex].querySelector('.slot-text');
+      if (span) fadingSpans.push(span);
+    }
+  }
+
+  const updateTexts = () => {
+    // 1. 更新左側英文 (維持原位，僅替換指定 Index)
+    engSlots.forEach((slot, i) => {
+      const span = slot.querySelector('.slot-text');
+      if (activeEng[i]) {
+        span.textContent = activeEng[i].eng;
+        slot.dataset.id = activeEng[i].id;
+        slot.style.visibility = 'visible';
+      } else {
+        slot.style.visibility = 'hidden';
+        slot.dataset.id = '';
+      }
+      slot.classList.remove('selected', 'wrong');
+    });
+
+    // 2. 更新右側中文 (全新打亂後的順序)
+    chSlots.forEach((slot, i) => {
+      const span = slot.querySelector('.slot-text');
+      if (activeCh[i]) {
+        span.textContent = activeCh[i].ch;
+        slot.dataset.id = activeCh[i].id;
+        slot.style.visibility = 'visible';
+      } else {
+        slot.style.visibility = 'hidden';
+        slot.dataset.id = '';
+      }
+      slot.classList.remove('selected', 'wrong');
+    });
+
+    // 文字替換後，移除透明度遮罩觸發 Fade In
+    fadingSpans.forEach(span => span.classList.remove('text-fade-out'));
+  };
+
+  if (animate && fadingSpans.length > 0) {
+    // 觸發 Fade Out
+    fadingSpans.forEach(span => span.classList.add('text-fade-out'));
+    // 等待 Fade Out 完成後更換文字，再 Fade In
+    setTimeout(updateTexts, 600);
+  } else {
+    updateTexts();
+  }
 }
 
-// 6. 渲染欄位
-function renderColumns() {
-  const engColumn = document.getElementById('english-column');
-  const chColumn = document.getElementById('chinese-column');
-  engColumn.innerHTML = '';
-  chColumn.innerHTML = '';
-
-  activeEng.forEach(word => {
-    const slot = document.createElement('div');
-    slot.className = 'slot fade-in';
-    slot.textContent = word.eng;
-    slot.dataset.type = 'eng';
-    slot.dataset.word = word.eng;
-    slot.addEventListener('click', handleEngClick);
-    engColumn.appendChild(slot);
-  });
-
-  activeCh.forEach(word => {
-    const slot = document.createElement('div');
-    slot.className = 'slot fade-in';
-    slot.textContent = word.ch;
-    slot.dataset.type = 'ch';
-    slot.dataset.word = word.eng;
-    slot.addEventListener('click', handleChClick);
-    chColumn.appendChild(slot);
-  });
+function updateTimer() {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const seconds = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${minutes}:${seconds}`;
 }
 
-// 7. 點擊英文欄處理
 function handleEngClick(e) {
-  if (selectedEngSlot) {
-    selectedEngSlot.classList.remove('selected');
-  }
-  selectedEngSlot = e.target;
-  selectedEngSlot.classList.add('selected');
+  const slot = e.currentTarget;
+  if (!slot.dataset.id) return;
 
-  if (selectedChSlot) {
-    checkMatch();
-  }
+  document.querySelectorAll('#english-column .slot').forEach(s => s.classList.remove('selected', 'wrong'));
+  slot.classList.add('selected');
+  selectedEngSlot = slot;
+
+  checkMatch();
 }
 
-// 8. 點擊中文欄處理
 function handleChClick(e) {
-  if (selectedChSlot) {
-    selectedChSlot.classList.remove('selected');
-  }
-  selectedChSlot = e.target;
-  selectedChSlot.classList.add('selected');
+  const slot = e.currentTarget;
+  if (!slot.dataset.id) return;
 
-  if (selectedEngSlot) {
-    checkMatch();
-  }
+  document.querySelectorAll('#chinese-column .slot').forEach(s => s.classList.remove('selected', 'wrong'));
+  slot.classList.add('selected');
+  selectedChSlot = slot;
+
+  checkMatch();
 }
 
-// 9. 檢查是否配對成功
 function checkMatch() {
-  const engWord = selectedEngSlot.dataset.word;
-  const chWord = selectedChSlot.dataset.word;
+  if (!selectedEngSlot || !selectedChSlot) return;
 
-  if (engWord === chWord) {
-    // 配對成功
-    selectedEngSlot.classList.add('fade-out');
-    selectedChSlot.classList.add('fade-out');
-    remainingCount--;
-    successScore++;
-    updateScoreboard();
+  const engId = selectedEngSlot.dataset.id;
+  const chId = selectedChSlot.dataset.id;
+
+  if (engId === chId) {
+    completedCount++;
+    document.getElementById('progress').textContent = `${completedCount} / ${wordBank.length}`;
+
+    // 取得配對成功的英文索引
+    const engIndex = activeEng.findIndex(item => item && String(item.id) === engId);
+
+    // 抽出一組新單字
+    const newItem = currentQueue.length > 0 ? currentQueue.pop() : null;
+
+    // 1. 左側英文：只更新被消除的那格，其他 4 格不變
+    activeEng[engIndex] = newItem;
+
+    // 2. 右側中文：扣除舊單字、加入新單字並洗牌
+    activeCh = activeCh.filter(item => item && String(item.id) !== chId);
+    if (newItem) {
+      activeCh.push(newItem);
+    }
+    activeCh = shuffle(activeCh);
 
     selectedEngSlot = null;
     selectedChSlot = null;
 
-    setTimeout(() => {
-      // 🎯 關鍵修正：精準找出這顆單字在 activeEng 與 activeCh 陣列中的記憶體位置
-      const engIndex = activeEng.findIndex(w => w.eng === engWord);
-      const chIndex = activeCh.findIndex(w => w.eng === engWord);
-
-      if (wordPool.length > 0) {
-        // 字庫還有字，抽新字精準遞補到該位置
-        const nextWord = wordPool.pop();
-        if (engIndex !== -1) activeEng[engIndex] = nextWord;
-        if (chIndex !== -1) activeCh[chIndex] = nextWord;
-      } else {
-        // 字庫空了，將此題從記憶體陣列中精準移除（畫面單字開始遞減）
-        if (engIndex !== -1) activeEng.splice(engIndex, 1);
-        if (chIndex !== -1) activeCh.splice(chIndex, 1);
-      }
-
-      // 🎲 每次答對後，將剩下的中文陣列重新亂數洗牌
-      shuffle(activeCh);
-
-      // 🔄 關鍵修正：直接呼叫 renderColumns()，徹底杜絕 DOM 節點與資料錯位的卡關 Bug
-      renderColumns();
-
-      // 🏁 檢查遊戲是否結束
-      if (activeEng.length === 0) {
-        showResult();
-      }
-    }, 500);
-
+    // 若英文全數清空，宣告通關
+    if (activeEng.every(item => item === null)) {
+      setTimeout(showResult, 600);
+    } else {
+      // 傳入 engIndex，讓系統知道「只有該格英文需要 fade 效果」
+      updateSlotContentsSmoothly(engIndex, true);
+    }
   } else {
-    // 配對失敗
-    errorScore++;
-    updateScoreboard();
-
-    const wrongEngText = selectedEngSlot.textContent;
-    const correctWordObj = wordBank.find(w => w.eng === wrongEngText);
-    if (correctWordObj) {
-      wrongWordsSet.add(`${correctWordObj.eng}(${correctWordObj.ch})`);
+    // 答錯時：紀錄錯題數與錯過的英文單字
+    wrongCount++;
+    const wrongWordObj = wordBank[parseInt(engId, 10)];
+    if (wrongWordObj) {
+      wrongWordsSet.add(wrongWordObj.eng);
     }
 
     selectedEngSlot.classList.add('wrong');
     selectedChSlot.classList.add('wrong');
 
-    const currentEng = selectedEngSlot;
-    const currentCh = selectedChSlot;
-    selectedEngSlot = null;
-    selectedChSlot = null;
+    const eSlot = selectedEngSlot;
+    const cSlot = selectedChSlot;
 
     setTimeout(() => {
-      currentEng.classList.remove('selected', 'wrong');
-      currentCh.classList.remove('selected', 'wrong');
+      eSlot.classList.remove('selected', 'wrong');
+      cSlot.classList.remove('selected', 'wrong');
     }, 500);
+
+    selectedEngSlot = null;
+    selectedChSlot = null;
   }
 }
 
-// 10. 顯示結算畫面彈出視窗 + 暗中上傳結果與時間記錄至 Google 試算表
+// 發送詳細數據至 Google Sheets
+function sendResultToGoogleSheet(timeSpent, correctCount, wrongCount, wrongWords) {
+  if (!GOOGLE_SHEET_URL) return;
+
+  const payload = {
+    timestamp: new Date().toLocaleString('zh-TW'), // 學生做測驗的時間
+    timeSpent: timeSpent,                          // 做了多久
+    correctCount: correctCount,                    // 對了幾題
+    wrongCount: wrongCount,                        // 錯了幾題
+    wrongWords: wrongWords                         // 考錯的單字
+  };
+
+  fetch(GOOGLE_SHEET_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  }).catch(error => console.error('Error sending data to Google Sheet:', error));
+}
+
 function showResult() {
-  document.getElementById('final-success').textContent = successScore;
-  document.getElementById('final-error').textContent = errorScore;
-
-  const wrongWordsList = document.getElementById('wrong-words-list');
-  wrongWordsList.innerHTML = '';
-  let wrongWordsString = "";
-
-  if (wrongWordsSet.size > 0) {
-    document.getElementById('wrong-words-box').style.display = 'block';
-    let items = [];
-    wrongWordsSet.forEach(wordStr => {
-      items.push(wordStr);
-      const li = document.createElement('li');
-      li.textContent = wordStr;
-      wrongWordsList.appendChild(li);
-    });
-    wrongWordsString = items.join(", ");
-  } else {
-    document.getElementById('wrong-words-box').style.display = 'none';
-    wrongWordsString = "無答錯單字";
-  }
-
-  // ⏱️ 計算時間花費（秒數）
-  const endTime = new Date();
-  const timeSpentSeconds = startTime ? Math.round((endTime - startTime) / 1000) : 0;
-
-  // 🤫 修正傳輸格式：改用 text/plain 繞過瀏覽器的 CORS 攔截，確保 100% 成功傳送
-  if (GOOGLE_APP_URL && GOOGLE_APP_URL !== "YOUR_PASTED_URL_HERE") {
-    fetch(GOOGLE_APP_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-      body: JSON.stringify({
-        successScore: successScore,
-        errorScore: errorScore,
-        wrongWords: wrongWordsString,
-        timeSpent: timeSpentSeconds
-      })
-    }).catch(err => console.log("Silent logging status:", err));
-  }
-
+  clearInterval(timerInterval);
+  const finalTime = document.getElementById('timer').textContent;
+  document.getElementById('final-time').textContent = finalTime;
   document.getElementById('result-modal').classList.remove('hidden');
+
+  // 對題數為總題數 (所有單字皆完成配對)
+  const correctCount = wordBank.length;
+  // 將錯字 Set 轉為以逗點分隔的字串
+  const wrongWordsString = wrongWordsSet.size > 0 ? Array.from(wrongWordsSet).join(', ') : '無';
+
+  // 通關時發送資料
+  sendResultToGoogleSheet(finalTime, correctCount, wrongCount, wrongWordsString);
 }
 
-// 11. 監聽重新開始按鈕與網頁載入
-document.getElementById('restart-btn').addEventListener('click', initGame);
-window.addEventListener('DOMContentLoaded', initGame);
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#english-column .slot').forEach(slot => {
+    slot.addEventListener('click', handleEngClick);
+  });
+
+  document.querySelectorAll('#chinese-column .slot').forEach(slot => {
+    slot.addEventListener('click', handleChClick);
+  });
+
+  document.getElementById('restart-btn').addEventListener('click', initGame);
+  document.getElementById('modal-restart-btn').addEventListener('click', initGame);
+
+  initGame();
+});
